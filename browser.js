@@ -10,27 +10,17 @@ module.exports = DistributedMap
 
 function DistributedMap(mdm, uri) {
     var distributedMap = new EventEmitter()
-        , channel = mdm.createStream(uri + "/channel")
         , store = {}
-        , bufferRead = PauseStream().pause()
-        , bufferWrite = PauseStream().pause()
-        , id = uuid()
+        , bufferRead = PauseStream()
+        , bufferWrite = PauseStream()
+        , readyFlag = false
+
+    uri = uri || "/distributed-map"
+    var channel = mdm.createStream(uri + "/channel")
 
     distributedMap._channel = channel
-
-    // request a sync
-    channel.write(JSON.stringify({
-        event: "sync"
-        , id: id
-    }))
-
-    // open a stream connection to the sync server
-    var syncStream = StreamClient(mdm, {
-        prefix: uri + "/proxy"
-    }).connect(id)
-    // when we get data from the server it's the initial state
-    syncStream.once("data", syncState)
-    syncStream.once("end", emitReady)
+    distributedMap._sync = sync
+    distributedMap._syncStream = sync()
 
     // buffer the channel until we have the initial data
     channel.pipe(bufferRead)
@@ -38,6 +28,8 @@ function DistributedMap(mdm, uri) {
 
     // mutate set when channel emits change event
     bufferRead.on("data", handleStateChange)
+
+    distributedMap.ready = ready
 
     // expose set methods
     distributedMap.set = set
@@ -51,16 +43,30 @@ function DistributedMap(mdm, uri) {
 
     return distributedMap
 
-    function syncState(data) {
-        data = JSON.parse(data)
-        forEach(data, setOnStore)
-        syncStream.end()
-    }
+    function sync() {
+        var id = uuid()
+        bufferRead.pause()
+        bufferWrite.pause()
 
-    function emitReady(data) {
-        distributedMap.emit("ready")
-        bufferRead.resume()
-        bufferWrite.resume()
+        // request a sync
+        channel.write({
+            event: "sync"
+            , id: id
+        })
+
+        // open a stream connection to the sync server
+        var syncStream = StreamClient(mdm, {
+            prefix: uri + "/proxy"
+        }).connect(id)
+        // when we get data from the server it's the initial state
+        syncStream.once("data", syncState)
+        syncStream.once("end", resumeBuffer)
+        // TODO: handle unable to get initial state
+
+        function syncState(data) {
+            forEach(data, setOnStore)
+            syncStream.end()
+        }
     }
 
     function setOnStore(value, key) {
@@ -68,10 +74,17 @@ function DistributedMap(mdm, uri) {
         distributedMap.emit("set", value, key, store)
     }
 
+    function resumeBuffer() {
+        readyFlag = true
+        bufferRead.resume()
+        bufferWrite.resume()
+        distributedMap.emit("ready", store)
+    }
+
     function handleStateChange(data) {
-        var key, value, id, event
-        data = JSON.parse(data)
-        event = data.event
+        var key, value, id
+            , event = data.event
+
         if (event === "set") {
             key = data.key
             value = data.value
@@ -82,25 +95,33 @@ function DistributedMap(mdm, uri) {
             value = store[key]
             ;delete store[key]
             distributedMap.emit("delete", value, key, store)
-        } else if (event === "sync") {
+        } else if (event === "sync" && readyFlag) {
             id = data.id
             var server = StreamServer(mdm, {
                 prefix: uri + "/proxy"
             }, function (stream) {
-                stream.write(JSON.stringify(store))
+                stream.write(store)
                 stream.end()
                 server.end()
             }).listen(id)
         }
     }
 
+    function ready(callback) {
+        if (readyFlag) {
+            callback(store)
+        } else {
+            distributedMap.on("ready", callback)
+        }
+    }
+
     function set(key, value) {
         store[key] = value
-        bufferWrite.write(JSON.stringify({
+        bufferWrite.write({
             event: "set"
             , key: key
             , value: value
-        }))
+        })
     }
 
     function get(key) {
@@ -113,10 +134,10 @@ function DistributedMap(mdm, uri) {
 
     function $delete(key) {
         delete store[key]
-        bufferWrite.write(JSON.stringify({
+        bufferWrite.write({
             event: "delete"
             , key: key
-        }))
+        })
     }
 
     function keys() {

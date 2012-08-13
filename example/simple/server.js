@@ -9,5 +9,7 @@ var browserifyServer = require("browserify-server")
 // Create a HTTP server on port 8080 service __dirname/static
 var server = browserifyServer.listen(__dirname, 8080)
 // Install the WS server on our HTTP server and have it serve the relay server
-boot.install(server, DistributedMapProxy())
+boot.install(server, DistributedMapProxy({
+    log: true
+}))
 console.log("sock hooked on", "/boot")
