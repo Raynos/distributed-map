@@ -1,6 +1,6 @@
 {
   "name": "distributed-map",
-  "version": "0.0.1",
+  "version": "0.1.0",
   "description": "A distributed key value store in the browser",
   "keywords": [],
   "author": "Raynos <raynos2@gmail.com>",
