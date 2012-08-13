@@ -121,7 +121,7 @@ This is a pre-runner to enable prototypes whilst I re-implement a DHT algorithm 
 # MIT Licenced
 
   [1]: https://github.com/Colingo/browser-stream-server
-  [2]: https://github.com/Raynos/distributed-map/tree/master/examples
+  [2]: https://github.com/Raynos/distributed-map/tree/master/example
   [3]: https://github.com/Raynos/boot
   [4]: https://github.com/dominictarr/mux-demux
   [5]: http://wiki.ecmascript.org/doku.php?id=harmony:simple_maps_and_sets
