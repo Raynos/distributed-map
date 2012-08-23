@@ -1,3 +1,4 @@
+[![build status](https://secure.travis-ci.org/Raynos/distributed-map.png)](http://travis-ci.org/Raynos/distributed-map)
 # distributed-map
 
 A distributed key value store in the browser
